@@ -102,13 +102,7 @@ pub(crate) fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::
                 .map(|p| p.to_string_lossy().to_string())
                 .collect()
         })),
-        pick_denoise_model: Some(Box::new(|| {
-            file_dialog()
-                .add_filter_nocase(lightcraft_ui_egui::i18n::tr("ONNX model"), &["onnx"])
-                .pick_file()
-                .map(|p| vec![p.to_string_lossy().into_owned()])
-                .unwrap_or_default()
-        })),
+        pick_denoise_model: None,
         pick_preset_files: Some(Box::new(|| {
             file_dialog()
                 .set_title(lightcraft_ui_egui::i18n::tr("Import Presets"))
@@ -122,14 +116,7 @@ pub(crate) fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::
                 .map(|p| p.to_string_lossy().to_string())
                 .collect()
         })),
-        pick_model_file: Some(Box::new(|| {
-            file_dialog()
-                .set_title(lightcraft_ui_egui::i18n::tr("Add a Face Recognition Model"))
-                .add_filter_nocase(lightcraft_ui_egui::i18n::tr("Face models (ONNX)"), &["onnx"])
-                .pick_file()
-                .map(|p| vec![p.to_string_lossy().to_string()])
-                .unwrap_or_default()
-        })),
+        pick_model_file: None,
         pick_tracklog: Some(Box::new(|| {
             file_dialog()
                 .set_title(lightcraft_ui_egui::i18n::tr("Auto-Tag from Tracklog"))
@@ -256,14 +243,13 @@ pub(crate) fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::
 /// the window lists the recent ones.
 pub(crate) fn open_session(in_memory: bool, launch: &Launch, seed_demo: bool) -> (Session, Option<LibraryProblem>) {
     let (mut s, problem) = match launch {
-        Launch::Ask => (Session::new().with_fs().with_default_denoise_models().with_system_clock(), None),
+        Launch::Ask => (Session::new().with_fs().with_system_clock(), None),
         Launch::Open { dir, remembered, .. } => open_library_session(in_memory, dir.clone(), *remembered, seed_demo),
     };
-    // lens profiles from the app's own lensfun copy, offered on the first launch (not for a throwaway session)
+    // Use an existing local lens database; do not enable automatic fetching.
     if !in_memory {
-        s = s.with_default_lens_database().with_lens_auto_download();
+        s = s.with_default_lens_database();
     }
-    s.face_models_dir = lightcraft_engine::config::default_face_models_dir();
     s.slide_templates_dir = lightcraft_engine::config::config_dir().map(|d| d.join(lightcraft_engine::slide_template::DIR_NAME));
     // Control requests are answered on the UI thread: Add to Apple Photos must not wait there
     s.apple_photos_background = true;
@@ -279,9 +265,9 @@ pub(crate) fn open_session(in_memory: bool, launch: &Launch, seed_demo: bool) ->
 /// make a new, empty one in its place, e.g. on an unmounted drive's path (issue #3239).
 fn open_library_session(in_memory: bool, dir: Option<std::path::PathBuf>, remembered: bool, seed_demo: bool) -> (Session, Option<LibraryProblem>) {
     if in_memory {
-        return (if seed_demo { Session::with_demo() } else { Session::new() }.with_fs().with_default_denoise_models().with_system_clock(), None);
+        return (if seed_demo { Session::with_demo() } else { Session::new() }.with_fs().with_system_clock(), None);
     }
-    let unopened = || Session::new().with_fs().with_default_denoise_models().with_system_clock();
+    let unopened = || Session::new().with_fs().with_system_clock();
     let Some(dir) = dir else {
         log::warn!("no library location (set --library or LIGHTCRAFT_LIBRARY)");
         return (unopened(), Some(LibraryProblem::new("", "There is no home folder to keep the library in. Choose a folder for it.")));
@@ -292,7 +278,7 @@ fn open_library_session(in_memory: bool, dir: Option<std::path::PathBuf>, rememb
         return (unopened(), Some(LibraryProblem { existing_only: true, ..LibraryProblem::new(dir.to_string_lossy(), why) }));
     }
     let t0 = std::time::Instant::now();
-    let mut s = Session::new().with_fs().with_default_denoise_models().with_system_clock();
+    let mut s = Session::new().with_fs().with_system_clock();
     match s.open_library(&dir, seed_demo && !remembered) {
         Ok(r) => {
             let (replayed, torn) = (r.replayed, r.torn_bytes);
