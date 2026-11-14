@@ -248,7 +248,7 @@ fn main() -> eframe::Result {
             "--no-demo" => seed_demo = false,
             "--memory" | "--demo" => in_memory = true,
             "--version" => {
-                println!("lightcraft {}", env!("CARGO_PKG_VERSION"));
+                println!("Oliyam (development; upstream engine {})", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             "-h" | "--help" => {
@@ -321,7 +321,7 @@ fn main() -> eframe::Result {
     let opens_as = prefs.as_ref().and_then(|ui| ui.window).and_then(lightcraft_ui_egui::window_place::WindowPlace::checked);
     let options = eframe::NativeOptions {
         renderer,
-        viewport: as_remembered(egui::ViewportBuilder::default().with_title("LightCraft"), opens_as)
+        viewport: as_remembered(egui::ViewportBuilder::default().with_title("Oliyam"), opens_as)
             .with_min_inner_size(lightcraft_ui_egui::window_place::MIN_SIZE)
             .with_drag_and_drop(true)
             .with_transparent(window_gpu::composes_window(compose_window, window_renderer))
@@ -350,21 +350,17 @@ fn main() -> eframe::Result {
     }
     let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         eframe::run_native(
-            "LightCraft",
+            "Oliyam",
             options,
             Box::new(move |cc| {
                 // the window's renderer is up (eframe calls this after creating it)
                 win_files_app.started(window_renderer);
                 came_up_app.store(true, std::sync::atomic::Ordering::Relaxed);
-                let (mut session, mut problem) = open_session(in_memory, &launch, seed_demo && files.is_empty());
-                // AI masks: the SAM 3 checkpoint (facebook/sam3) in <config>/models/sam3, or LIGHTCRAFT_SAM3_DIR
-                // (never required: without it, AI masks offer to download it; see docs/ai-masks.md)
-                // and the user's own download locations, one base URL per line (LIGHTCRAFT_SAM3_MIRRORS too)
-                session = session.with_default_sam3_model();
+                let (session, mut problem) = open_session(in_memory, &launch, seed_demo && files.is_empty());
                 // HDR display: SDR unless the surface, platform and display all allow HDR
                 hdr_display::report(cc.wgpu_render_state.as_ref().map(|r| r.target_format));
                 let mut app = LightcraftApp::new(session, services(cc, app_log_file.as_deref()));
-                app.set_startup_update_check(true);
+                app.set_startup_update_check(false);
                 if let Some(ui) = prefs {
                     app.ui = ui;
                 }
